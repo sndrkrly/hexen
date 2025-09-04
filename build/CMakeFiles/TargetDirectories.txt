@@ -1,3 +1,0 @@
-/home/sndrkrly/Code/projects/reif/build/CMakeFiles/reif.dir
-/home/sndrkrly/Code/projects/reif/build/CMakeFiles/edit_cache.dir
-/home/sndrkrly/Code/projects/reif/build/CMakeFiles/rebuild_cache.dir

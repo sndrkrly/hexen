@@ -1,1 +1,0 @@
-/usr/bin/c++ -Wl,--dependency-file=CMakeFiles/reif.dir/link.d CMakeFiles/reif.dir/src/gfx/window.cpp.o CMakeFiles/reif.dir/src/main.cpp.o -o bin/reif  /usr/lib/libGLEW.so /usr/lib/libglfw.so.3.4 -ldl /usr/lib/libGLX.so /usr/lib/libOpenGL.so
