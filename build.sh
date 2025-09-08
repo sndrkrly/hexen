@@ -11,8 +11,8 @@ cd build
 cmake ..
 cmake --build .
 
-if [ -f "bin/reif" ]; then
-    ./bin/reif
+if [ -f "bin/hexen" ]; then
+    ./bin/hexen
 else
     echo "Something went wrong, fatal error"
 fi
