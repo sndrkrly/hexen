@@ -15,7 +15,9 @@
 #include "../vendor/dr_wav.h"
 
 namespace fs = std::filesystem;
+
 std::string _current_track = "";
+std::string _current_tab = "home";
 
 static ALCdevice* gDevice = nullptr;
 static ALCcontext* gContext = nullptr;
@@ -125,6 +127,13 @@ bool is_audio_file(const fs::path& path) {
     return ext == ".wav"; 
 }
 
+void remove_substring(std::string& str, const std::string& toRemove) {
+    size_t pos;
+    while ((pos = str.find(toRemove)) != std::string::npos) {
+        str.erase(pos, toRemove.length());
+    }
+}
+
 void play_audio(const std::string& file) {
     unsigned int channels, sampleRate;
     drwav_uint64 totalPCMFrameCount;
@@ -168,7 +177,9 @@ int main () {
     ImGui::CreateContext();
 
     ImGuiIO& io = ImGui::GetIO(); (void)io;
+
     io.Fonts->AddFontFromFileTTF("../res/fonts/inter.ttf", 36.0f);
+    ImFont *boldFont = io.Fonts->AddFontFromFileTTF("../res/fonts/inter-bold.ttf", 36.0f);
 
     ImGuiViewport* viewport = ImGui::GetMainViewport();
     ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove |
@@ -209,7 +220,11 @@ int main () {
                ImGui::Dummy(ImVec2(0, 8));
                ImGui::Indent(10.0f);
 
-               ImGui::TextColored(ImVec4(1.0f, 1.0f, 0.0f, 1.0f), "hexen");
+               ImGui::Indent(3.0f);
+               ImGui::PushFont(boldFont);
+               ImGui::TextColored(ImVec4(100.0f / 255.0f, 100.0f / 255.0f, 100.0f / 255.0f, 1.0f), "hexen");
+               ImGui::PopFont();
+               ImGui::Unindent(3.0f);
 
                if (ImGui::Button("home")) { }
                if (ImGui::Button("favourites")) { }
@@ -222,14 +237,17 @@ int main () {
                 ImGui::Dummy(ImVec2(0, 8));
                 ImGui::Indent(10.0f);
 
+                ImGui::PushFont(boldFont);
                 std::string username = get_username();
                 ImGui::Text("get back where u left off, %s", username.c_str());
+                ImGui::PopFont();
 
                 ImGui::BeginChild("music browser", ImVec2(550, 0), true, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoBackground);
                     float control_bar_height = 80.0f;      
                     float file_browser_height = ImGui::GetContentRegionAvail().y - control_bar_height;
 
                     ImGui::BeginChild("file browser", ImVec2(0, file_browser_height), true);
+                        ImGui::SetWindowFontScale(0.6f);
                         static std::string current_dir = "../music/";
 
                         for (const auto& entry : fs::directory_iterator(current_dir)) {
@@ -238,7 +256,7 @@ int main () {
 
                             if (entry.is_directory()) {
                                 if (ImGui::Selectable((name + "/").c_str(), false)) {
-                                    current_dir = path.string();
+                                    current_dir = path.string(); 
                                 }
                             } else if (entry.is_regular_file() && is_audio_file(path)) {
                                 if (ImGui::Selectable(name.c_str(), false)) {
@@ -253,9 +271,23 @@ int main () {
                             }
                         }
                     ImGui::EndChild();
-                    ImGui::BeginChild("audio controls", ImVec2(0, 0), false);
-                        if (ImGui::Button("stop")) { stop_audio(); }
 
+                    if (ImGui::Button("stop")) { 
+                        stop_audio(); 
+                    }
+
+                    ImGui::SameLine();
+                    ImGui::PushFont(boldFont);
+                    ImGui::SetWindowFontScale(0.4f);
+
+                    std::string display_track = _current_track;
+                    remove_substring(display_track, "../music/");
+                    remove_substring(display_track, ".wav");
+
+                    ImGui::Text("%s", display_track.c_str());
+                    ImGui::PopFont();
+
+                    ImGui::BeginChild("audio controls", ImVec2(0, 0), false);
                         float current_time = get_current_time(gSource);
                         float progress = current_time / gAudioDuration;
                         progress = std::clamp(progress, 0.0f, 1.0f);
