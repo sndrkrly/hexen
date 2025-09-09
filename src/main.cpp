@@ -11,6 +11,7 @@
 
 #include <AL/al.h>
 #include <AL/alc.h>
+
 #define DR_WAV_IMPLEMENTATION
 #include "../vendor/dr_wav.h"
 
@@ -51,14 +52,6 @@ void cleanup_openal() {
     alcDestroyContext(gContext);
 
     alcCloseDevice(gDevice);
-}
-
-void stop_audio() {
-    if (gSource) {
-        alSourceStop(gSource);
-        alSourcei(gSource, AL_BUFFER, 0);
-        _current_track = "";
-    }
 }
 
 #include "config.h"
@@ -105,8 +98,6 @@ float get_audio_duration(ALuint buffer) {
     alGetBufferi(buffer, AL_BITS, &bits);
     alGetBufferi(buffer, AL_FREQUENCY, &frequency);
 
-    // Total samples = total bytes / (bits/8 * channels)
-    // Duration = total samples / sample rate
     float duration = static_cast<float>(sizeInBytes) /
                      (channels * (bits / 8)) /
                      frequency;
@@ -125,13 +116,6 @@ bool is_audio_file(const fs::path& path) {
     std::string ext = path.extension().string();
     std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
     return ext == ".wav"; 
-}
-
-void remove_substring(std::string& str, const std::string& toRemove) {
-    size_t pos;
-    while ((pos = str.find(toRemove)) != std::string::npos) {
-        str.erase(pos, toRemove.length());
-    }
 }
 
 void play_audio(const std::string& file) {
@@ -162,6 +146,32 @@ void play_audio(const std::string& file) {
 
     gAudioDuration = get_audio_duration(gBuffer);
     _current_track = file;
+}
+
+void stop_audio() {
+    if (gSource) {
+        alSourceStop(gSource);
+        alSourcei(gSource, AL_BUFFER, 0);
+        _current_track = "";
+    }
+}
+
+void remove_substring(std::string& str, const std::string& toRemove) {
+    size_t pos;
+    while ((pos = str.find(toRemove)) != std::string::npos) {
+        str.erase(pos, toRemove.length());
+    }
+}
+
+std::string format_time(float seconds) {
+    if (seconds < 0) seconds = 0;
+    
+    int minutes = static_cast<int>(seconds) / 60;
+    int secs = static_cast<int>(seconds) % 60;
+    
+    char buffer[16];
+    snprintf(buffer, sizeof(buffer), "%d:%02d", minutes, secs);
+    return std::string(buffer);
 }
 
 int main () {
@@ -210,7 +220,7 @@ int main () {
             ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
             ImGui::Begin("hexen", nullptr, window_flags);
 
-             ImVec2 p = ImGui::GetCursorScreenPos();
+            ImVec2 p = ImGui::GetCursorScreenPos();
             ImVec2 size = ImVec2(200, ImGui::GetContentRegionAvail().y);
             ImGui::GetWindowDrawList()->AddRectFilled(p, ImVec2(p.x + size.x, p.y + size.y), IM_COL32(13, 15, 18, 255));
 
@@ -233,20 +243,22 @@ int main () {
                ImGui::Unindent(10.0f);
             ImGui::EndChild();
             ImGui::SameLine();
-            ImGui::BeginChild("home", ImVec2(550, 0), false, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoBackground);
+            ImGui::BeginChild("home", ImVec2(0, 0), false, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoBackground);
                 ImGui::Dummy(ImVec2(0, 8));
                 ImGui::Indent(10.0f);
 
                 ImGui::PushFont(boldFont);
+
                 std::string username = get_username();
                 ImGui::Text("get back where u left off, %s", username.c_str());
+                
                 ImGui::PopFont();
 
-                ImGui::BeginChild("music browser", ImVec2(550, 0), true, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoBackground);
-                    float control_bar_height = 80.0f;      
+                ImGui::BeginChild("music_browser", ImVec2(0, 0), true, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoBackground);
+                    float control_bar_height = 150.0f;
                     float file_browser_height = ImGui::GetContentRegionAvail().y - control_bar_height;
 
-                    ImGui::BeginChild("file browser", ImVec2(0, file_browser_height), true);
+                    ImGui::BeginChild("file_browser", ImVec2(0, file_browser_height), true);
                         ImGui::SetWindowFontScale(0.6f);
                         static std::string current_dir = "../music/";
 
@@ -271,42 +283,64 @@ int main () {
                             }
                         }
                     ImGui::EndChild();
+                    ImGui::BeginChild("playback_controls", ImVec2(0, control_bar_height), false, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoBackground);
+                        float total_width = ImGui::GetContentRegionAvail().x;
+                        float stop_button_width = 60.0f;
 
-                    if (ImGui::Button("stop")) { 
-                        stop_audio(); 
-                    }
+                        std::string display_track = _current_track;
+                        remove_substring(display_track, "../music/");
+                        remove_substring(display_track, ".wav");
 
-                    ImGui::SameLine();
-                    ImGui::PushFont(boldFont);
-                    ImGui::SetWindowFontScale(0.4f);
+                        ImGui::PushFont(boldFont);
 
-                    std::string display_track = _current_track;
-                    remove_substring(display_track, "../music/");
-                    remove_substring(display_track, ".wav");
+                        ImVec2 text_size = ImGui::CalcTextSize(display_track.empty() ? "no track playing" : display_track.c_str());
+                        float centered_x = (total_width - text_size.x) * 0.5f;
 
-                    ImGui::Text("%s", display_track.c_str());
-                    ImGui::PopFont();
+                        ImGui::SetCursorPosX(centered_x);
+                        ImGui::SetWindowFontScale(0.6f);
 
-                    ImGui::BeginChild("audio controls", ImVec2(0, 0), false);
+                        ImGui::Text("%s", display_track.empty() ? "no track playing" : display_track.c_str());
+                        
+                        ImGui::PopFont();
+                        ImGui::Dummy(ImVec2(0.0f, 1.0f));
+
+                        ImGui::SetCursorPosX(0);
+                        if (ImGui::Button("[stop]", ImVec2(stop_button_width, 40.0f))) {
+                            stop_audio();
+                        }
+
+                        ImGui::Dummy(ImVec2(0.0f, 0.0f));
+
                         float current_time = get_current_time(gSource);
-                        float progress = current_time / gAudioDuration;
+                        float progress = (gAudioDuration > 0) ? current_time / gAudioDuration : 0.0f; //current_time / gAudioDuration;
                         progress = std::clamp(progress, 0.0f, 1.0f);
 
-                        ImVec2 progress_bar_size = ImVec2(ImGui::GetContentRegionAvail().x, 20.0f);
-                        ImVec2 cursor_pos = ImGui::GetCursorScreenPos();
+                        std::string current_time_str = format_time(current_time);
+                        std::string total_time_str = format_time(gAudioDuration);
+                        std::string time_display = current_time_str + " / " + total_time_str;
+
+                        ImGui::SetWindowFontScale(0.5f);
                         
+                        ImVec2 time_text_size = ImGui::CalcTextSize(time_display.c_str());
+                        
+                        float time_padding = 10.0f;
+                        float progress_bar_width = total_width - time_text_size.x - time_padding;
+                        
+                        ImVec2 progress_bar_size = ImVec2(progress_bar_width, 20.0f);
+                        ImVec2 cursor_pos = ImGui::GetCursorScreenPos();
+
                         ImGui::GetWindowDrawList()->AddRectFilled(
                             cursor_pos,
                             ImVec2(cursor_pos.x + progress_bar_size.x, cursor_pos.y + progress_bar_size.y),
-                            IM_COL32(60, 64, 72, 255) 
+                            IM_COL32(60, 64, 72, 255)
                         );
-                        
+
                         ImGui::GetWindowDrawList()->AddRectFilled(
                             cursor_pos,
                             ImVec2(cursor_pos.x + progress_bar_size.x * progress, cursor_pos.y + progress_bar_size.y),
-                            IM_COL32(200, 200, 200, 255)     
+                            IM_COL32(200, 200, 200, 255)
                         );
-                        
+
                         ImGui::InvisibleButton("##progress_bar", progress_bar_size);
 
                         if (ImGui::IsItemClicked()) {
@@ -314,12 +348,24 @@ int main () {
                             
                             float click_x = mouse_pos.x - cursor_pos.x;
                             float new_progress = click_x / progress_bar_size.x;
-    
-                            new_progress = std::clamp(new_progress, 0.0f, 1.0f);
                             
+                            new_progress = std::clamp(new_progress, 0.0f, 1.0f);
+
                             float new_time = new_progress * gAudioDuration;
                             alSourcef(gSource, AL_SEC_OFFSET, new_time);
                         }
+
+                        ImGui::SameLine();
+                        ImGui::SetCursorPosX(progress_bar_width + time_padding);
+                        ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 3);
+
+                        if (!display_track.empty()) {
+                            ImGui::TextColored(ImVec4(0.8f, 0.8f, 0.8f, 1.0f), "%s", time_display.c_str());
+                        } else {
+                            ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "0:00 / 0:00");
+                        }
+
+                        ImGui::SetWindowFontScale(0.6f);
                     ImGui::EndChild();
                 ImGui::EndChild();
                 ImGui::Unindent(10.0f);
